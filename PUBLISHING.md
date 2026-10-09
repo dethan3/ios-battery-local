@@ -1,14 +1,16 @@
-# GitHub publishing
+# GitHub Pages deployment
 
-Suggested repository: `dEthan3/ios-battery-local`. Create an empty repository in your GitHub account, then supply its URL to the assistant. Public source simplifies GitHub Pages availability; the project contains only application code and fictional fixtures, with no personal Analytics logs.
+Source is uploaded to https://github.com/dethan3/ios-battery-local on branch `main`.
 
-If publishing yourself with an authenticated GitHub CLI, run from this project directory:
+Open https://github.com/dethan3/ios-battery-local/settings/pages and select:
 
-```sh
-gh repo create dEthan3/ios-battery-local --public --source=. --remote=origin --push
-gh api --method POST repos/dEthan3/ios-battery-local/pages -f 'source[branch]=main' -f 'source[path]=/'
-```
+- Source: Deploy from a branch
+- Branch: main
+- Folder: / (root)
+- Save
 
-Alternatively, push this existing local Git repository to a new empty remote, then select Settings → Pages → Deploy from a branch → main → / (root) → Save. GitHub account permissions and plan determine availability. No publishing credentials are bundled.
+After GitHub reports a successful deployment, open the URL reported by Pages. The expected project URL is https://dethan3.github.io/ios-battery-local/; it has not yet been verified live.
 
-After the Pages build succeeds, verify the URL reported by GitHub; do not assume a URL is live before checking. On an iPhone, visit it in Safari, select a local file, wait for the offline-ready message, add it to the home screen, then disconnect and reopen. Check a representative real Analytics file without uploading it to any issue or chat.
+On your iPhone, select a real Analytics .ips file in Safari. It is parsed on-device, without uploading. Wait for the offline-ready message, use Share → Add to Home Screen, then disconnect and reopen to verify offline use on your actual device. Missing fields should be reported rather than inferred; do not post entire private Analytics files to issues or chat.
+
+The source upload was completed through the connected GitHub tool. No GitHub credentials are bundled. Enabling Pages could not be completed by the agent because the available connector has no Pages settings action and the GitHub settings page was inaccessible.
