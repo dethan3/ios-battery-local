@@ -1,29 +1,50 @@
-# 电池日志 · 本地分析
+# 机芯档案 · Device Atlas
 
-Mobile-first, dependency-free PWA for iPhone Safari. Select an iOS Analytics `.ips` file; parsing runs inside a local Web Worker. No backend, uploads, analytics, CDN, or third-party code. Chinese UI. Install through Safari → Share → Add to Home Screen.
+面向 iPhone Safari 的本地硬件与电池分析 PWA。无后端、上传、第三方脚本或统计；可安装、缓存应用资源并离线读取文件。名称与芯片图标已更新，原仓库地址保留。
 
-## Run and test
+## 使用
 
-Requires Node.js 18+. Run `npm test`, then `npm start` and open http://127.0.0.1:4173. HTTPS or localhost is required for service workers. Serve the project directory as static files; all asset URLs are relative for GitHub Pages repository subpaths. Enable Pages under repository Settings → Pages → Deploy from a branch → main / root.
+选择本机文件，可多选（最多 20 个），每个文件分别出报告。网页没有扫描 iOS 分析数据目录的权限，不能替你选择未授权文件。
 
-## Interpretation
+- 全面硬件线索：sysdiagnose TAR / TAR.GZ / ZIP，或已解压的 IODeviceTree、IOService、remotectl_dumpstate 文本。
+- 电池记录：Analytics 开头的 `.ips`、`.ips.ca.synced`；支持 JSON 序列、逐行 JSON、普通键值文本与简单 XML plist 标量。
+- JetsamEvent 是内存终止诊断；崩溃报告也不等于完整硬件报告。
 
-Supported formats: JSON objects/arrays, consecutive JSON objects (IPS header + body), and newline-delimited JSON. BOM accepted. Only exact known aliases, optionally prefixed by dotted namespaces or `last_value_`, are read. Aliases are heuristic and not an Apple-supported schema. Displayed capacity units are deliberately left as raw units. Multiple values remain visible; file ordering is not treated as chronological evidence. No supplier decoding tables or authenticity claims. Optional nominal/design ratio uses one unambiguous pair within the same record and object, with explicit unit uncertainty.
+文件输入不设扩展名过滤，避免 Safari 将 `.ips.ca.synced` 显示为灰色。按内容识别压缩包，不假定所有文件是单个 JSON。工作线程分块读取，不将整个诊断包解压到内存或磁盘。
 
-Some `.ips` files are crash reports and contain no battery data. Plaintext legacy logs, compressed files and new unknown schemas may not be supported. File size is capped at 50 MB; traversal limits are reported. Malformed/truncated records are marked as partial. No real user logs are included. Tests use fictional values. The production interface has no demo mode.
+## 结果含义与覆盖范围
 
-## Privacy
+提供设备代码、系统和容量等可用字段，以及屏幕、电池、闪存、内存和四类摄像头的证据行。厂商必须来自明确字段或支持的节点上下文。显示原始键、记录和来源；相互矛盾的值保留，不推定最新值。不凭设备型号填入某一批次供应商。
 
-File text and results exist only in current-page/worker memory. Clear terminates the worker and removes results. No browser storage stores logs. Service worker cache contains only the explicit app asset list. Hosting providers may collect access metadata (such as IP); initial load/update requests are not private from the host. This tool does not change Apple's own Analytics sharing setting. Content Security Policy restricts resources to same origin and prohibits forms and embedded objects. Rendered log fields use textContent, never HTML.
+屏幕代码 G9N/G9P/G9Q 与 GVC/GH3 有少量离线社区映射，显示为候选，可关闭；不是 Apple 官方认证，也未独立验证所有机型。其他部件优先提取日志明确写出的厂商或型号，不猜测未知序列号。缺少字段显示未识别。传感器、模组、电芯厂等不能混为同一供应商。
 
-## Offline and updates
+电池提取循环次数、最大容量百分比、标称/原始最大/设计容量、MaximumFCC 等已知别名。按文件、设备标识和来源分组，不跨记录拼凑容量比。缺失不等于零，保留原始单位；同一对象的标称/设计比值只是算术估算，不当作官方健康度。
 
-Wait for the offline-ready message on the first online visit. Test by disabling network and reloading within the same scope. Safari may evict website data. A changed worker installs in the background and becomes active after old app windows close; bump the cache version when changing app assets. Cache cleanup is limited to this app's prefix within its scope.
+这不是系统电池分析 App 的功能等价实现。当前无法解码所有私有部件标识、相机校准数据或二进制 plist，也没有可验证的完整供应商数据库。不提供顶级/优秀等质量排名、原装鉴定或维修结论。另有依靠用户观察的纯色屏幕、触控轨迹和摄像头实时预览；浏览器不保证访问每个物理镜头。
 
-## References
+## 大文件与限制
 
-- [Apple: IPS crash-report JSON](https://developer.apple.com/documentation/xcode/interpreting-the-json-format-of-a-crash-report) documents the crash format, not a battery Analytics schema.
-- [Apple: battery information](https://support.apple.com/en-mo/106348)
-- [GitHub: creating a Pages site](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)
+单文件和展开读取预算均为 2 GiB；选中 TAR 成员最大 512 MiB；最多 20000 条目。JSON 单记录超过 2 MiB、文本单行超过 256 KiB 会跳过并提示结果不完整；证据、设备分组也有数量上限。ZIP 支持存储/deflate，校验 CRC；不支持加密、分卷或 ZIP64。损坏压缩包拒绝成功报告。TAR 仅读取白名单相关文件，ZIP 仅展开选中的成员；原始包不会保存。不是完整 sysdiagnose 通用解析器。
 
-This independent tool is not affiliated with Apple. Automated tests do not substitute for testing on a physical iPhone; unsupported fields and OS-specific behavior remain possible.
+300 多 MB 的诊断包在技术上可以处理，但并非每个 Analytics 文件都这么大，也不证明某 App 的实际输入大小。桌面合成压力测试不代表所有 iPhone 的可用内存或真实日志兼容性。失败时可在本机解压，仅选择相关文本。
+
+## 隐私、离线和更新
+
+默认文件及结果只在内存。序列号在提取时遮盖，设备标识只用于区分记录，不写入结果。只有点击保存才写入浏览器 IndexedDB（最多 20 份脱敏报告）；可逐项删除，清除本次记录只清内存。导出不含原文件名、完整日志、完整序列号或原始设备标识；提取的日期、地区、容量和证据仍需分享前检查。
+
+摄像头仅主动点击后请求权限，不录制、不上传；关闭预览、收起检查或离开页面时停止。日志文本使用 textContent 渲染；CSP 限制同源资源与禁止表单提交。
+
+Safari 分享 → 添加到主屏幕。首次联网等离线资源就绪后可断网打开；系统仍可能清除缓存。Service worker 只缓存明确列出的应用资源，不缓存输入文件。新版安装完成后点击加载新版；读取期间不切换版本。首次加载和更新会访问 GitHub Pages，托管方可能记录 IP 等访问元数据。
+
+## 开发与测试
+
+Node.js 22+：`npm test`（或 `node --test tests/*.test.js`），`npm start`（或 `node tools/serve.js`）。无运行时第三方依赖。服务工作线程需 HTTPS / localhost；所有资源路径相对，兼容 GitHub Pages 仓库子路径。具体通过项与未验证项见 VALIDATION.md。
+
+## 依据
+
+- [公开 IODeviceTree 原始样本](https://gist.github.com/bazad/1faef1a6fe396b820a43170b43e38be1)：硬件键的实例，不代表所有系统均公开相同字段。
+- [sysdiagnose-extractor-library](https://github.com/IsMyPhonePwned/sysdiagnose-extractor-library)：诊断包目录与相关记录的公开实现参考。
+- [屏幕代码社区观察](https://www.reddit.com/r/iphone18pro/comments/1wss5qr/sidebyside_display_comparison_gvclg_vs_g9nsamsung/)：候选映射，不是官方查询表。
+- [Apple 官方诊断说明](https://developer.apple.com/feedback-assistant/profiles-and-logs/)与[部件和维修历史](https://support.apple.com/en-us/102658)。
+
+独立工具，与 Apple 或系统电池分析 App 无关联。真实用户日志未加入仓库，生产页面没有示例数据按钮。
