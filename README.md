@@ -34,7 +34,7 @@
 
 摄像头仅主动点击后请求权限，不录制、不上传；关闭预览、收起检查或离开页面时停止。日志文本使用 textContent 渲染；CSP 限制同源资源与禁止表单提交。
 
-Safari 分享 → 添加到主屏幕。首次联网等离线资源就绪后可断网打开；系统仍可能清除缓存。Service worker 只缓存明确列出的应用资源，不缓存输入文件。新版安装完成后点击加载新版；读取期间不切换版本。首次加载和更新会访问 GitHub Pages，托管方可能记录 IP 等访问元数据。
+Safari 分享 → 添加到主屏幕。首次联网等离线资源就绪后可断网打开；系统仍可能清除缓存。Service worker 只缓存明确列出的应用资源，不缓存输入文件。联网打开或刷新时优先取服务器资源；新版缓存自动激活，无手动更新入口。断网时回退到已完整安装的资源缓存，不强制刷新正在分析的页面。首次加载和更新会访问 GitHub Pages，托管方可能记录 IP 等访问元数据。
 
 ## 开发与测试
 
@@ -48,3 +48,4 @@ Node.js 22+：`npm test`（或 `node --test tests/*.test.js`），`npm start`（
 - [Apple 官方诊断说明](https://developer.apple.com/feedback-assistant/profiles-and-logs/)与[部件和维修历史](https://support.apple.com/en-us/102658)。
 
 独立工具，与 Apple 或系统电池分析 App 无关联。真实用户日志未加入仓库，生产页面没有示例数据按钮。
+

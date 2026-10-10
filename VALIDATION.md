@@ -20,3 +20,6 @@ A 335546880-byte synthetic TAR (320 MiB irrelevant member plus a small hardware 
 Not verified: physical iPhone Safari, actual user sysdiagnose/Analytics contents, every supplier code, camera access and individual lens selection, Home Screen installation, OS eviction, very large selected JSON records and real production archive diversity. No claim of functional equivalence with the reference App. Capacity units and community mappings retain explicit uncertainty.
 
 Tests do not upload user diagnostics. Production fixtures, screenshots and stress data are not embedded in the UI.
+
+Update 2.0.1: removed manual update entry, versioned initial assets and worker URL, automatic service worker activation, network-first known app assets with offline fallback. Browser import/offline suite rerun.
+
