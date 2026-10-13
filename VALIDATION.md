@@ -2,7 +2,7 @@
 
 18/18 Node parser/archive tests passed on the final streaming implementation: synced JSON framing, separate device groups, duplicate prevention, hardware context, serial masking, opaque identifiers, XML scalars, TAR whitelist/path safety, GZIP checksums/truncation, ZIP stored/deflate CRC/encryption, PAX names, Jetsam/crash exclusion, chunk boundaries, oversized records and bounded evidence.
 
-Desktop Chromium and Playwright WebKit passed at 390×844 using the real file picker, under `/ios-battery-local/`:
+Desktop Chromium and Playwright WebKit passed at 390×844 using the real file picker, under `/ios-battery-local/` (the Pages path before the repository was renamed to `ios-hardware-check`):
 
 - Unrestricted `.ips.ca.synced` selection, multi-file processing and strongest-report recommendation.
 - GZIP TAR parsed inside worker; eight hardware rows; missing fields remain unknown.

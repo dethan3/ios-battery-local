@@ -1,8 +1,8 @@
 # Publishing
 
-Existing repository: https://github.com/dethan3/ios-battery-local
+Repository: https://github.com/dethan3/ios-hardware-check
 
-Display name: iOS 硬件检测. Repository URL stays the same. Saved reports stay in the existing IndexedDB database `device-atlas-reports`.
+Display name: iOS 硬件检测. GitHub Pages: https://dethan3.github.io/ios-hardware-check/. Saved reports stay in the existing IndexedDB database `device-atlas-reports`.
 
 The user reports Pages is already enabled. This static application needs no build: deploy main, repository root. The parser workflow runs Node tests; it is not the Pages deployment workflow. GitHub Pages branch deployment should publish source commits automatically under the existing configuration.
 
