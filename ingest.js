@@ -1,6 +1,9 @@
 import {Analyzer,TextScanner} from './analyzer.js';
-const MAX_INPUT=2*1024**3,MAX_EXPANDED=2*1024**3;
-export function relevant(name){return /(?:^|\/)(?:ioreg\/[^/]+\.txt|IODeviceTree(?:\.txt)?|IOService(?:\.txt)?|remotectl_dumpstate(?:\.txt)?|SystemVersion\.plist|deviceinfo\.(?:txt|json))$/i.test(name)||/(?:^|\/)Battery(?:Health|BDC)\/[^/]+\.(?:txt|log|json)$/i.test(name)||/(?:^|\/)Analytics-[^/]+(?:\.ips(?:\.ca\.synced)?|\.json)$/i.test(name);}
+import {isBinaryPlist,parseBinaryPlist} from './plist.js';
+const MAX_INPUT=2*1024**3,MAX_EXPANDED=2*1024**3,MAX_STRUCTURED=8*1024*1024;
+export function relevant(name){return /(?:^|\/)(?:ioreg\/[^/]+\.txt|IODeviceTree(?:\.txt)?|IOService(?:\.txt)?|remotectl_dumpstate(?:\.txt)?|SystemVersion\.plist|deviceinfo\.(?:txt|json))$/i.test(name)||/(?:^|\/)Battery(?:Health|BDC|UIPlist)\/[^/]+\.(?:txt|log|json|csv|plist)$/i.test(name)||/(?:^|\/)Analytics-[^/]+(?:\.ips(?:\.ca\.synced)?|\.json)$/i.test(name);}
+function applyStructured(name,bytes,a){const source=safeSource(name);if(isBinaryPlist(bytes)){try{a.object(parseBinaryPlist(bytes),source,1);}catch{a.warnings.push(`无法读取二进制 plist：${source}`);}return;}const text=new TextDecoder().decode(bytes);if(/BatteryBDC/i.test(name)&&/\.csv$/i.test(name)||looksLikeBatteryCsv(text))a.noteBdc(name,text);else{const scanner=new TextScanner(a,source);scanner.push(text);scanner.end();}}
+function looksLikeBatteryCsv(text){const line=(text.split(/\r?\n/,1)[0]||'').trim();return !!line&&line[0]!=='{'&&line[0]!=='['&&line[0]!=='<'&&/(?:^|,)\s*"?(?:CycleCount|MaxCapacityPercent|DesignCapacity)"?\s*(?:,|$)/i.test(line);}
 function safeSource(name){return name.split(/[\\/]/).slice(-2).join('/').replace(/sysdiagnose_[^/]+\//,'');}
 class Reader{
  constructor(stream){this.r=stream.getReader();this.chunk=new Uint8Array();this.offset=0;this.total=0;this.ended=false;}
@@ -22,7 +25,7 @@ async function scanTar(reader,first,a,progress){let header=first,pax={},globalPa
   if(pax.size||globalPax.size){size=Number(pax.size||globalPax.size);if(!Number.isSafeInteger(size)||size<0)throw new Error('TAR 条目大小无效。');}
   if(['x','g','L'].includes(type)){if(size>65536)throw new Error('TAR 路径元数据过大。');const data=await reader.read(size);if(data.length!==size)throw new Error('TAR 元数据被截断。');if(type==='L')longname=ascii(data).trim();else if(type==='g')globalPax={...globalPax,...parsePax(data)};else pax=parsePax(data);}
   else{const safe=!name.startsWith('/')&&!name.split('/').includes('..')&&!name.includes('\\');const wanted=safe&&['0','\0','7'].includes(type)&&relevant(name);
-   if(wanted&&size<=512*1024**2){selected++;const source=safeSource(name),scanner=new TextScanner(a,source),decoder=new TextDecoder();await reader.consume(size,b=>scanner.push(decoder.decode(b,{stream:true})));scanner.push(decoder.decode());scanner.end();}
+   if(wanted&&size<=512*1024**2){selected++;if(/\.(?:csv|plist)$/i.test(name)){if(size>MAX_STRUCTURED){a.warnings.push('有相关表格或 plist 超过 8 MiB，已跳过。');await reader.consume(size);}else{const data=await reader.read(size);if(data.length!==size)throw new Error('诊断包条目被截断。');applyStructured(name,data,a);}}else{const source=safeSource(name),scanner=new TextScanner(a,source),decoder=new TextDecoder();await reader.consume(size,b=>scanner.push(decoder.decode(b,{stream:true})));scanner.push(decoder.decode());scanner.end();}}
    else{skipped++;await reader.consume(size);if(wanted)a.warnings.push('有相关条目超过 512 MiB，已跳过。');}
    pax={};longname='';
   }
@@ -44,12 +47,14 @@ async function scanZip(file,a,progress){const tail=new Uint8Array(await file.sli
   if(p+46+nameLen+extraLen+commentLen>directory.length)throw new Error('ZIP 文件名被截断。');const name=new TextDecoder().decode(directory.subarray(p+46,p+46+nameLen));p+=46+nameLen+extraLen+commentLen;
   if(!relevant(name)||name.startsWith('/')||name.split('/').includes('..')||name.includes('\\')){skipped++;continue;}
   if(flags&1)throw new Error('相关文件已加密，请先在本机解密后再选择。');if(![0,8].includes(method))throw new Error('ZIP 压缩算法暂不支持，请改选 .tar.gz 或已解压文件。');
-  if(uncompressed>512*1024**2||compressed===0xffffffff||local===0xffffffff){skipped++;a.warnings.push('有相关 ZIP 条目超过安全预算，已跳过。');continue;}
+  if(uncompressed>512*1024**2||compressed===0xffffffff||local===0xffffffff||(/\.(?:csv|plist)$/i.test(name)&&uncompressed>MAX_STRUCTURED)){skipped++;a.warnings.push('有相关 ZIP 条目超过安全预算，已跳过。');continue;}
   const h=new DataView(await file.slice(local,local+30).arrayBuffer());if(h.byteLength<30||h.getUint32(0,true)!==0x04034b50)throw new Error('ZIP 条目文件头损坏。');const start=local+30+h.getUint16(26,true)+h.getUint16(28,true);if(start+compressed>file.size)throw new Error('ZIP 条目被截断。');
   let stream=file.slice(start,start+compressed).stream();if(method===8){try{stream=stream.pipeThrough(new DecompressionStream('deflate-raw'));}catch{throw new Error('此 Safari 版本不支持 ZIP 解压，请选 .tar.gz 或已解压文件。');}}
-  const reader=stream.getReader(),scanner=new TextScanner(a,safeSource(name)),decoder=new TextDecoder();let bytes=0,crc=0xffffffff;
-  try{while(true){const x=await reader.read();if(x.done)break;bytes+=x.value.length;expanded+=x.value.length;if(bytes>uncompressed||expanded>MAX_EXPANDED)throw new Error('ZIP 解压超过声明大小或安全预算。');crc=crcUpdate(crc,x.value);scanner.push(decoder.decode(x.value,{stream:true}));}}catch(e){await reader.cancel().catch(()=>{});throw e;}
-  if(bytes!==uncompressed||((crc^0xffffffff)>>>0)!==expectedCRC)throw new Error('ZIP 内容校验失败；结果未接受。');scanner.push(decoder.decode());scanner.end();selected++;progress({phase:'正在扫描 ZIP',entries:i+1,selected,skipped});
+  const structured=/\.(?:csv|plist)$/i.test(name)&&uncompressed<=MAX_STRUCTURED;
+  const reader=stream.getReader(),scanner=structured?null:new TextScanner(a,safeSource(name)),decoder=new TextDecoder();let bytes=0,crc=0xffffffff;const chunks=structured?[]:null;
+  try{while(true){const x=await reader.read();if(x.done)break;bytes+=x.value.length;expanded+=x.value.length;if(bytes>uncompressed||expanded>MAX_EXPANDED)throw new Error('ZIP 解压超过声明大小或安全预算。');crc=crcUpdate(crc,x.value);if(structured)chunks.push(x.value);else scanner.push(decoder.decode(x.value,{stream:true}));}}catch(e){await reader.cancel().catch(()=>{});throw e;}
+  if(bytes!==uncompressed||((crc^0xffffffff)>>>0)!==expectedCRC)throw new Error('ZIP 内容校验失败；结果未接受。');
+  if(structured){const data=new Uint8Array(bytes);let at=0;for(const c of chunks){data.set(c,at);at+=c.length;}applyStructured(name,data,a);}else{scanner.push(decoder.decode());scanner.end();}selected++;progress({phase:'正在扫描 ZIP',entries:i+1,selected,skipped});
  }
  return {entries:count,selected,skipped};
 }
@@ -62,7 +67,9 @@ export async function analyzeFile(file,progress=()=>{}){
   if(first[0]===31&&first[1]===139){type='GZIP';try{stream=stream.pipeThrough(new DecompressionStream('gzip'));}catch{throw new Error('此浏览器不支持本地 GZIP 解压，请先在本机解压。');}}
   const reader=new Reader(stream);try{const head=await reader.read(512);
    if(isTar(head)){type=type==='GZIP'?'TAR.GZ 诊断包':'TAR 诊断包';archive=await scanTar(reader,head,a,progress);}
-   else{const text=new TextDecoder().decode(head);if(/^bplist/.test(text))throw new Error('二进制 plist 暂未支持，请改选 IODeviceTree / IOService 文本或完整诊断包。');if(head.subarray(0,100).filter(b=>b===0).length>10)throw new Error('此二进制文件不是支持的日志或诊断包。');await scanText(reader,head,a,'所选文件');if(a.kinds.has('Analytics')||/^\s*[\[{]/.test(text))type='Analytics / JSON 记录';}
+   else{const text=new TextDecoder().decode(head);const csv=looksLikeBatteryCsv(text);
+    if(isBinaryPlist(head)||csv){const parts=[head];let total=head.length;await reader.rest(b=>{total+=b.length;if(total>MAX_STRUCTURED)throw new Error('这个 plist 或表格超过 8 MiB，已停止。');parts.push(b);});const all=new Uint8Array(total);let at=0;for(const p of parts){all.set(p,at);at+=p.length;}if(isBinaryPlist(all)){type='二进制 plist';applyStructured('所选文件.plist',all,a);}else{type='电池表格';applyStructured('BatteryBDC/所选文件.csv',all,a);}}
+    else{if(head.subarray(0,100).filter(b=>b===0).length>10)throw new Error('此二进制文件不是支持的日志或诊断包。');await scanText(reader,head,a,'所选文件');if(a.kinds.has('Analytics')||/^\s*[\[{]/.test(text))type='Analytics / JSON 记录';}}
   }finally{await reader.cancel().catch(()=>{});}
  }
  const result=a.finish();const useful=result.fields.length+result.hardware.length+result.batteryGroups.length;

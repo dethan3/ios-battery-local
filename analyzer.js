@@ -1,7 +1,7 @@
 import {components,cleanKey,mask,panelCandidate} from './rules.js';
 export const batteryDefinitions=[
- ['cycles','循环次数',['cyclecount','batterycyclecount'],0,100000,'次'],
- ['health','日志最大容量比例',['maximumcapacitypercent'],0,150,'%'],
+ ['cycles','循环次数',['cyclecount','batterycyclecount','trustedcyclecount'],0,100000,'次'],
+ ['health','日志最大容量比例',['maximumcapacitypercent','maxcapacitypercent','trustedmaximumcapacity'],0,150,'%'],
  ['nominal','标称满充容量',['nominalchargecapacity'],1,30000,'原始单位'],
  ['raw','原始满充容量',['applerawmaxcapacity','rawmaxcapacity'],1,30000,'原始单位'],
  ['design','设计容量',['designcapacity'],1,30000,'原始单位'],
@@ -22,7 +22,7 @@ function contextComponent(path){const p=path.toLowerCase();if(/ultra.?wide|super
 function readable(raw){let s=String(raw).trim().replace(/[,;]$/,'');const q=s.match(/^<?"([\s\S]*?)">?$/);if(q)return q[1].replace(/\\0/g,'').trim();if(/^<[a-f0-9\s]+>$/i.test(s)){const h=s.slice(1,-1).replace(/\s/g,'');if(h.length%2===0&&h.length<512){const a=h.match(/../g)?.map(x=>parseInt(x,16))||[];if(a.every(n=>n===0||n>=32&&n<127))return String.fromCharCode(...a).replace(/\0/g,'').trim();}}return s;}
 const invalid=s=>!s||/^(unknown|<unknown>|null|n\/a|not available)$/i.test(s);
 export class Analyzer{
- constructor(){this.records=0;this.malformed=0;this.oversized=0;this.fields=[];this.hardware=[];this.batteries=new Map();this.deviceIds=new Map();this.kinds=new Set();this.diagnosticSources=new Set();this.warnings=[];this.limit=false;this.devices=[];this.dates=[];this.seen=new Set();}
+ constructor(){this.records=0;this.malformed=0;this.oversized=0;this.fields=[];this.hardware=[];this.batteries=new Map();this.deviceIds=new Map();this.kinds=new Set();this.diagnosticSources=new Set();this.warnings=[];this.limit=false;this.devices=[];this.dates=[];this.seen=new Set();this.bdc=null;}
  subject(id,fallback){if(!id)return fallback;if(!this.deviceIds.has(id)){if(this.deviceIds.size>=32){this.limit=true;return '设备标识超出预算';}this.deviceIds.set(id,'日志设备 '+(this.deviceIds.size+1));}return this.deviceIds.get(id);}
  add(list,row){if(list.length>=250){this.limit=true;return;}const key=JSON.stringify([row.component,row.key,row.value,row.source,row.subject,row.path]);if(this.seen.has(key))return;this.seen.add(key);if(list.length>=250){this.limit=true;return;}list.push(row);}
  field(key,raw,{source='本地文件',path='',subject='设备未标明',record=0,object=''}={}){
@@ -30,7 +30,7 @@ export class Analyzer{
   const k=cleanKey(key),value=readable(raw).slice(0,180);if(invalid(value))return;
   if(deviceFields[k]&&!(k==='serialnumber'&&contextComponent(path)))this.add(this.fields,{key,label:deviceFields[k],value:/serialnumber/.test(k)?mask(value):value,source,path,subject});
   if(k==='timestamp'||k==='starttimestamp'||k==='endtimestamp'){if(this.dates.length<20&&!this.dates.includes(value))this.dates.push(value);}
-  if(k==='compatible'){const product=value.match(/i(?:Phone|Pad|Pod)\d+,\d+/)?.[0];if(product)this.add(this.fields,{key,label:'设备代码',value:product,source,path,subject});}
+  if(k==='compatible'||k==='model'||k==='producttype'||k==='targettype'){const product=value.match(/i(?:Phone|Pad|Pod)\d+,\d+/)?.[0];if(product)this.add(this.fields,{key,label:'设备代码',value:product,source,path,subject});}
   let component=Object.keys(explicit).find(c=>explicit[c].includes(k));
   if(!component&&/^(manufacturer|vendor|model|partnumber|serialnumber)$/.test(k))component=contextComponent(path);
   if(component){const serial=/serial/.test(k);const kind=/manufacturer|vendor/.test(k)?'日志厂商文本':serial?'部件代码':/type/.test(k)?'日志类型':'日志型号 / 参数';const row={component,key,value:serial?mask(value):value,source,path,subject,kind};if(component==='screen'&&/panelserialnumber/.test(k)){row.code=value.slice(0,3);row.candidate=panelCandidate(value);}this.add(this.hardware,row);}
@@ -50,7 +50,9 @@ export class Analyzer{
    for(const [k,x] of Object.entries(v)){if(x&&typeof x==='object')stack.push({v:x,path:path+'.'+k,level:level+1});else this.field(k,x,{source,path:path+'.'+k,subject,record,object:path});}
   }
  }
- finish(){const batteryGroups=[...this.batteries.values()].map(g=>{
+ noteBdc(name,text){const rank=(/BDC_Daily/i.test(name)?'1':'0')+name;if(!this.bdc||rank>this.bdc.rank)this.bdc={rank,name,text};}
+ flushBdc(){if(!this.bdc)return;const lines=this.bdc.text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);if(lines.length<2)return;const split=line=>{const out=[];let cur='',q=false;for(let i=0;i<line.length;i++){const c=line[i];if(q){if(c==='"'){if(line[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}else if(c==='"')q=true;else if(c===','){out.push(cur);cur='';}else cur+=c;}out.push(cur);return out;};const header=split(lines[0]);let last=null;for(let i=1;i<lines.length;i++){const row=split(lines[i]);if(row.some(c=>c.trim()))last=row;}if(!last)return;const source=this.bdc.name.split(/[\\/]/).slice(-2).join('/');for(let i=0;i<header.length;i++){const value=last[i]?.trim();if(value)this.field(header[i],value,{source,path:source+' · 最新一行',subject:source,record:1,object:'BatteryBDC'});}}
+ finish(){this.flushBdc();const batteryGroups=[...this.batteries.values()].map(g=>{
   const metrics=batteryDefinitions.map(([id,label,,,,unit])=>{const matches=g.observations.filter(o=>o.id===id);const values=[...new Set(matches.filter(o=>o.number!==null).map(o=>o.number))];return {id,label,unit,values,matches,conflict:values.length>1};});
   const estimates=[];const pairs=new Map();for(const o of g.observations){if(o.number===null||!['nominal','design'].includes(o.id))continue;const k=o.record+'|'+o.object;if(!pairs.has(k))pairs.set(k,{nominal:[],design:[]});pairs.get(k)[o.id].push(o);}
   for(const p of pairs.values())if(p.nominal.length===1&&p.design.length===1)estimates.push({percent:Math.round(p.nominal[0].number/p.design[0].number*1000)/10,source:[p.nominal[0].path,p.design[0].path]});
@@ -78,7 +80,7 @@ export class TextScanner{
   while((m=xml.exec(line)))this.a.field(m[1],m[3],context);
   const pending=line.match(/^<key>([^<]+)<\/key>$/);if(pending){this.plistKey=pending[1];return;}
   if(this.plistKey){const v=line.match(/^<(string|integer|real)>([^<]*)<\/\1>$/);if(v)this.a.field(this.plistKey,v[2],context);this.plistKey=null;}
-  const kv=line.match(/"([\w.,-]+)"\s*=\s*(.+)/)||line.match(/(?:^|\s)([\w.-]+)\s*(?:\(\d+\))?\s*[:=]\s*(.+)/);
+  const kv=line.match(/"([^"]+)"\s*=\s*(.+)/)||line.match(/(?:^|\s)([\w.-]+)\s*(?:\(\d+\))?\s*[:=]\s*(.+)/);
   if(kv)this.a.field(kv[1],kv[2],context);
  }
  end(){if(this.line)this.processLine();if(this.depth)this.a.malformed++;}
