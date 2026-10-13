@@ -1,4 +1,4 @@
-# Validation · 2026-10-10 · Device Atlas 2.0
+# Validation · 2026-10-10 · iOS 硬件检测 2.0
 
 18/18 Node parser/archive tests passed on the final streaming implementation: synced JSON framing, separate device groups, duplicate prevention, hardware context, serial masking, opaque identifiers, XML scalars, TAR whitelist/path safety, GZIP checksums/truncation, ZIP stored/deflate CRC/encryption, PAX names, Jetsam/crash exclusion, chunk boundaries, oversized records and bounded evidence.
 
@@ -22,4 +22,6 @@ Not verified: physical iPhone Safari, actual user sysdiagnose/Analytics contents
 Tests do not upload user diagnostics. Production fixtures, screenshots and stress data are not embedded in the UI.
 
 Update 2.0.1: removed manual update entry, versioned initial assets and worker URL, automatic service worker activation, network-first known app assets with offline fallback. Browser import/offline suite rerun.
+
+Update 2.0.2: visible product name is iOS 硬件检测. IndexedDB database name remains `device-atlas-reports` so previously saved reports still open.
 
