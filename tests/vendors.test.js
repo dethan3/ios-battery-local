@@ -7,7 +7,9 @@ test('longest matching prefix in the local table names the vendor',()=>{
  assert.equal(lookupCode('screen','G9Qxx').code,'G9Q');
  assert.equal(lookupCode('screen','GH3xx').vendor,'LG Display');
  assert.equal(lookupCode('screen','GVCxx').code,'GVC');
- assert.equal(lookupCode('screen','B03xx').vendor,'京东方 BOE');
+ assert.equal(lookupCode('screen','J5Vxx').vendor,'京东方 BOE');
+ assert.equal(lookupCode('screen','B02xx'),null);
+ assert.equal(lookupCode('screen','B03xx'),null);
  assert.equal(lookupCode('battery','F8YPRIVATE').vendor,'欣旺达 Sunwoda');
  assert.equal(lookupCode('battery','fg9private').vendor,'新普科技 Simplo');
  assert.equal(lookupCode('battery','F9Yxx').code,'F9Y');

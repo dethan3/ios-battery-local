@@ -2,8 +2,7 @@
 export const codeRules=[
  {component:'screen',prefixes:['G9N','G9P','G9Q'],vendor:'三星显示 Samsung Display',id:'panel-samsung-g9',source:'https://wker.com/iphone-samsung/'},
  {component:'screen',prefixes:['GH3','GVC'],vendor:'LG Display',id:'panel-lg',source:'https://wker.com/iphone-samsung/'},
- {component:'screen',prefixes:['J5V'],vendor:'京东方 BOE',id:'panel-boe-j5v',source:'https://wker.com/iphone-samsung/'},
- {component:'screen',prefixes:['B02','B03'],vendor:'京东方 BOE',id:'panel-boe-b0',source:'https://www.pconline.com.cn/ask/121778.html'},
+ {component:'screen',prefixes:['J5V'],vendor:'京东方 BOE',id:'panel-boe-j5v',source:'https://forums.macrumors.com/threads/ongoing-screen-lottery-18-18-pro-18-pro-max-and-17-17-pro-17-pro-max-air-merged.2466900/'},
  {component:'battery',prefixes:['F5D'],vendor:'惠州德赛 Desay',id:'battery-desay-f5d',source:'https://zhidao.baidu.com/question/994630251263129779.html'},
  {component:'battery',prefixes:['F8Y'],vendor:'欣旺达 Sunwoda',id:'battery-sunwoda-f8y',source:'https://zhidao.baidu.com/question/994630251263129779.html'},
  {component:'battery',prefixes:['FG9','F9Y'],vendor:'新普科技 Simplo',id:'battery-simplo',source:'https://zhidao.baidu.com/question/994630251263129779.html'}
