@@ -1,4 +1,4 @@
-import {components,cleanKey,mask,panelCandidate} from './rules.js';
+import {components,cleanKey,mask,lookupCode} from './rules.js';
 export const batteryDefinitions=[
  ['cycles','循环次数',['cyclecount','batterycyclecount','trustedcyclecount'],0,100000,'次'],
  ['health','日志最大容量比例',['maximumcapacitypercent','maxcapacitypercent','trustedmaximumcapacity'],0,150,'%'],
@@ -33,7 +33,7 @@ export class Analyzer{
   if(k==='compatible'||k==='model'||k==='producttype'||k==='targettype'){const product=value.match(/i(?:Phone|Pad|Pod)\d+,\d+/)?.[0];if(product)this.add(this.fields,{key,label:'设备代码',value:product,source,path,subject});}
   let component=Object.keys(explicit).find(c=>explicit[c].includes(k));
   if(!component&&/^(manufacturer|vendor|model|partnumber|serialnumber)$/.test(k))component=contextComponent(path);
-  if(component){const serial=/serial/.test(k);const kind=/manufacturer|vendor/.test(k)?'日志厂商文本':serial?'部件代码':/type/.test(k)?'日志类型':'日志型号 / 参数';const row={component,key,value:serial?mask(value):value,source,path,subject,kind};if(component==='screen'&&/panelserialnumber/.test(k)){row.code=value.slice(0,3);row.candidate=panelCandidate(value);}this.add(this.hardware,row);}
+  if(component){const serial=/serial/.test(k);const kind=/manufacturer|vendor/.test(k)?'日志厂商文本':serial?'部件代码':/type/.test(k)?'日志类型':'日志型号 / 参数';const row={component,key,value:serial?mask(value):value,source,path,subject,kind};if((component==='screen'&&/panelserialnumber/.test(k))||/serial/.test(k)){const found=lookupCode(component,value);if(found){row.code=found.code;row.candidate=found;}}this.add(this.hardware,row);}
   for(const [id,label,aliases,min,max,unit] of batteryDefinitions){if(!aliases.includes(k))continue;
    // Battery aliases in a clearly unrelated component must not become battery evidence.
    const c=contextComponent(path);if(c&&c!=='battery')continue;

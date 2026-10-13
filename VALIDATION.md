@@ -25,3 +25,5 @@ Update 2.0.1: removed manual update entry, versioned initial assets and worker U
 
 Update 2.0.2: visible product name is iOS 硬件检测. IndexedDB database name remains `device-atlas-reports` so previously saved reports still open.
 
+Update 2.0.5: `vendors.js` maps prepared screen prefixes (G9N/G9P/G9Q, GH3/GVC, J5V, B02/B03) and battery prefixes (F5D, F8Y, FG9/F9Y) to vendor names. English names already written in the log display in Chinese. TLC and unknown prefixes stay unmapped. No quality grades. 23/23 Node tests passed. Desktop Chromium at 390×844 read a synthetic device tree: G9N showed 三星显示, F8Y showed 欣旺达, TLC stayed TLC, and turning 厂商代码对照 off returned the raw codes. Serials stayed masked.
+
