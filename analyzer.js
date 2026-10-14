@@ -1,5 +1,6 @@
 import {components,cleanKey,mask,lookupCode} from './rules.js';
 import {recordTime,csvRows} from './records.js';
+import {decodedHardware} from './hardware.js';
 export const batteryDefinitions=[
  ['cycles','循环次数',['cyclecount','batterycyclecount','trustedcyclecount'],0,100000,'次'],
  ['health','日志最大容量比例',['maximumcapacitypercent','maxcapacitypercent','trustedmaximumcapacity'],0,150,'%'],
@@ -30,6 +31,7 @@ export class Analyzer{
  field(key,raw,{source='本地文件',path='',subject='设备未标明',record=0,object=''}={}){
   if(!['string','number'].includes(typeof raw))return;
   const k=cleanKey(key),value=readable(raw).slice(0,180);if(invalid(value))return;
+  const decoded=decodedHardware(k,value,path,key);if(decoded)this.add(this.hardware,{key,...decoded,source,path,subject});
   if(deviceFields[k]&&!(k==='serialnumber'&&contextComponent(path))&&(!['productname','marketingname'].includes(k)||/^(iPhone|iPad|iPod)(?:\s+(?:\d|Pro|Air|mini|SE|Max|Plus)[\w\s.-]*)?$/.test(value))&&(!['product','producttype'].includes(k)||/^i(?:Phone|Pad|Pod)\d+,\d+$/.test(value)))this.add(this.fields,{key,label:deviceFields[k],value:/serialnumber/.test(k)?mask(value):value,source,path,subject});
   if(k==='timestamp'||k==='starttimestamp'||k==='endtimestamp'){if(this.dates.length<20&&!this.dates.includes(value))this.dates.push(value);}
   if(k==='compatible'||k==='model'||k==='producttype'||k==='targettype'){const product=value.match(/i(?:Phone|Pad|Pod)\d+,\d+/)?.[0];if(product)this.add(this.fields,{key,label:'设备代码',value:product,source,path,subject});}
@@ -83,7 +85,7 @@ export class TextScanner{
   const pending=line.match(/^<key>([^<]+)<\/key>$/);if(pending){this.plistKey=pending[1];return;}
   if(this.plistKey){const v=line.match(/^<(string|integer|real)>([^<]*)<\/\1>$/);if(v)this.a.field(this.plistKey,v[2],context);this.plistKey=null;}
   const kv=line.match(/"([^"]+)"\s*=\s*(.+)/)||line.match(/(?:^|\s)([\w.-]+)\s*(?:\(\d+\))?\s*[:=]\s*(.+)/);
-  if(kv){this.a.field(kv[1],kv[2],context);if(/^(BatteryData|LPEMData)$/.test(kv[1])&&kv[2].startsWith('{')){const re=/"([^"]+)"\s*=\s*("(?:[^"\\]|\\.)*"|\d+(?:\.\d+)?)(?=\s*[,;}])/g;let item;while((item=re.exec(kv[2])))if(batteryDefinitions.some(d=>d[2].includes(cleanKey(item[1]))))this.a.field(item[1],item[2],{...context,path:context.path+'.'+kv[1],object:context.object+'.'+kv[1]});}}
+  if(kv){this.a.field(kv[1],kv[2],context);if(/^(BatteryData|LPEMData|Controller Characteristics|Device Characteristics)$/.test(kv[1])&&kv[2].startsWith('{')){const re=/"([^"\\]+)"\s*=\s*("(?:[^"\\]|\\.)*"|\d+(?:\.\d+)?)(?=\s*[,;}])/g;let item;while((item=re.exec(kv[2]))){const k=cleanKey(item[1]),battery=/^(BatteryData|LPEMData)$/.test(kv[1]);if(battery?batteryDefinitions.some(d=>d[2].includes(k)):['vendorname','nandmarketingname','defaultbitspercell','chipid','capacity'].includes(k))this.a.field(item[1],item[2],{...context,path:context.path+'.'+kv[1],object:context.object+'.'+kv[1]});}}}
  }
  end(){if(this.line)this.processLine();if(this.depth)this.a.malformed++;}
 }

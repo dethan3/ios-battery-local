@@ -15,9 +15,11 @@ export const nameRules=[
  {test:/^cowell$/i,vendor:'高伟电子 Cowell'},
  {test:/^(foxconn|hon\s*hai)$/i,vendor:'富士康 Foxconn'},
  {test:/^lg(\s+display|\s+innotek)?$/i,vendor:'LG'},
- {test:/^(kioxia|toshiba)$/i,vendor:'铠侠 Kioxia'},
+ {test:/^kioxia$/i,vendor:'铠侠 Kioxia'},
+ {test:/^toshiba$/i,vendor:'东芝 Toshiba'},
  {test:/^sandisk$/i,vendor:'闪迪 SanDisk'},
  {test:/^micron$/i,vendor:'美光 Micron'},
  {test:/^(boe|京东方)$/i,vendor:'京东方 BOE'},
  {test:/^(simplo|新普科技)$/i,vendor:'新普科技 Simplo'}
 ];
+
