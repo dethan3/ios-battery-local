@@ -1,7 +1,7 @@
 import {Analyzer,TextScanner} from './analyzer.js';
 import {isBinaryPlist,parseBinaryPlist} from './plist.js';
 const MAX_INPUT=2*1024**3,MAX_EXPANDED=2*1024**3,MAX_STRUCTURED=8*1024*1024;
-export function relevant(name){return /(?:^|\/)(?:ioreg\/[^/]+\.txt|IODeviceTree(?:\.txt)?|IOService(?:\.txt)?|remotectl_dumpstate(?:\.txt)?|SystemVersion\.plist|deviceinfo\.(?:txt|json))$/i.test(name)||/(?:^|\/)Battery(?:Health|BDC|UIPlist)\/[^/]+\.(?:txt|log|json|csv|plist)$/i.test(name)||/(?:^|\/)Analytics-[^/]+(?:\.ips(?:\.ca\.synced)?|\.json)$/i.test(name);}
+export function relevant(name){if(name.split('/').some(p=>p.startsWith('._')||p==='__MACOSX'||p==='ProxiedDevice'))return false;return /(?:^|\/)(?:ioreg\/[^/]+\.txt|IODeviceTree(?:\.txt)?|IOService(?:\.txt)?|remotectl_dumpstate(?:\.txt)?|SystemVersion\.plist|deviceinfo\.(?:txt|json))$/i.test(name)||/(?:^|\/)Battery(?:Health|BDC|UIPlist)\/[^/]+\.(?:txt|log|json|csv|plist)$/i.test(name)||/(?:^|\/)Analytics-[^/]+(?:\.ips(?:\.ca\.synced)?|\.json)$/i.test(name);}
 function applyStructured(name,bytes,a){const source=safeSource(name);if(isBinaryPlist(bytes)){try{a.object(parseBinaryPlist(bytes),source,1);}catch{a.warnings.push(`无法读取二进制 plist：${source}`);}return;}const text=new TextDecoder().decode(bytes);if(/BatteryBDC/i.test(name)&&/\.csv$/i.test(name)||looksLikeBatteryCsv(text))a.noteBdc(name,text);else{const scanner=new TextScanner(a,source);scanner.push(text);scanner.end();}}
 function looksLikeBatteryCsv(text){const line=(text.split(/\r?\n/,1)[0]||'').trim();return !!line&&line[0]!=='{'&&line[0]!=='['&&line[0]!=='<'&&/(?:^|,)\s*"?(?:CycleCount|MaxCapacityPercent|DesignCapacity)"?\s*(?:,|$)/i.test(line);}
 function safeSource(name){return name.split(/[\\/]/).slice(-2).join('/').replace(/sysdiagnose_[^/]+\//,'');}
@@ -79,3 +79,4 @@ export async function analyzeFile(file,progress=()=>{}){
  if(result.malformed||result.oversized||result.limited)result.warnings.push(`结果不完整：${result.malformed} 个损坏片段、${result.oversized} 个超大记录${result.limited?'；已达到字段或结构预算':''}。`);
  progress({phase:'读取完成',percent:100});return {...result,type,archive,bytes:file.size};
 }
+

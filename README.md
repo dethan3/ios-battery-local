@@ -49,3 +49,12 @@ Node.js 22+：`npm test`（或 `node --test tests/*.test.js`），`npm start`（
 
 独立工具，与 Apple 或系统电池分析 App 无关联。真实用户日志未加入仓库，生产页面没有示例数据按钮。
 
+
+
+## 2.1.0 · 真实诊断包修正
+
+结果页取消整机概览大卡，设备原始字段与扫描统计收进详情。ProductName 仅接受整机名称，硬件节点不再占用设备字段预算。排除 ProxiedDevice 配对设备日志及 AppleDouble `._` 附属文件，避免把手表的电池与容量放进 iPhone 报告。
+
+IORegistry 文本不再按 JSON 大对象扫描；读取 BatteryData 内受支持的容量标量。FullChargeCapacity 与 MaximumFCC 分开保留，避免不同含义的容量混成冲突值。补充 AppleANS 存储型号和四类 CameraModuleSerialNumString 字段，序列号在提取时遮盖，未知前缀仅显示代码，不猜厂商。
+
+BatteryBDC 按实际行时间选记录，保留源文件、行号、BatteryIndex 和是否注明时区。没有有效时间时只取同一文件的最后一行，不声称最新。不同 BatteryIndex 不合并。默认展示每日电池记录；其他来源可切换，不跨来源拼出健康度。104% 等超过 100 的容量比例原样保留并解释为日志值，不等同设置中的电池健康；循环记录为零也不判断是否使用过。主页面只展示存在的数值，原始路径进入来源详情。

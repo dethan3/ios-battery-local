@@ -1,8 +1,10 @@
 import {components,knownVendor} from './rules.js';
+import {groupInfo,preferredGroup} from './records.js';
 const $=id=>document.getElementById(id);
 let reports=[],errors=[],current=0,worker=null,run=0,activeTab='config',dbPromise=null,cameraStream=null,selectedByUser=false;
 function node(tag,text='',cls=''){const n=document.createElement(tag);n.textContent=text;if(cls)n.className=cls;return n;}
-function reportTitle(r){const names=r.fields.filter(f=>f.label==='设备名称'||f.label==='设备代码').map(f=>f.value);return [...new Set(names)].join(' / ')||'设备信息未识别';}
+function vendorLabel(value){const s=knownVendor(value);return /[\u4e00-\u9fff]/.test(s)?s.replace(/\s+[A-Za-z].*$/,''):s;}
+function reportTitle(r){return [...new Set(r.fields.filter(f=>f.label==='设备代码'&&/^i(?:Phone|Pad|Pod)\d+,\d+$/.test(f.value)).map(f=>f.value))].slice(0,2).join(' / ')||'本机分析记录';}
 function evidence(row){const n=node('div','','evidence');n.append(node('strong',row.kind||row.label||'原始字段'),node('div',`${row.key}：${row.value}`),node('code',`${row.source} · ${row.path}${row.subject?' · '+row.subject:''}`));return n;}
 function setTab(tab){activeTab=tab;for(const t of ['config','battery'])$(t).hidden=t!==tab;for(const b of document.querySelectorAll('[data-tab]'))b.setAttribute('aria-selected',String(b.dataset.tab===tab));}
 function renderFiles(){const box=$('file-results');box.replaceChildren();box.hidden=!reports.length&&!errors.length;
@@ -11,29 +13,25 @@ function renderFiles(){const box=$('file-results');box.replaceChildren();box.hid
 }
 function renderHardware(r){$('hardware').replaceChildren();const community=$('community').checked;
  for(const [id,label] of components){const rows=r.hardware.filter(x=>x.component===id),text=[];const direct=rows.filter(x=>x.kind==='日志厂商文本');
-  for(const row of direct)text.push(knownVendor(row.value));
-  if(!direct.length&&community)for(const row of rows)if(row.candidate)text.push(row.candidate.vendor+'（候选）');
-  if(!text.length&&rows.length)text.push(...rows.slice(0,2).map(x=>x.code||x.value));
-  const unique=[...new Set(text)];const d=node('details','','component'),summary=node('summary');summary.append(node('span',label,'component-label'),node('span',unique.length?unique.join(' / '):'未识别','component-summary'+(unique.length?'':' is-unknown')));d.append(summary);const content=node('div','','evidence-wrap');
+  for(const row of direct)text.push(vendorLabel(row.value));
+  if(!direct.length&&community)for(const row of rows)if(row.candidate)text.push(vendorLabel(row.candidate.vendor)+'（候选）');
+  if(!text.length&&rows.length)text.push(...(rows.some(x=>x.kind!=='部件代码')?rows.filter(x=>x.kind!=='部件代码'):rows).slice(0,2).map(x=>x.kind==='部件代码'?'代号 '+(x.code||x.value.slice(0,3))+' · 厂商未确认':x.value));
+  const unique=[...new Set(text)];const d=node('details','','component'),summary=node('summary');summary.append(node('span',label,'component-label'),node('span',unique.length?unique.join(' / '):'未识别','component-summary'+(unique.length?'':' is-unknown')));summary.append(node('small',!rows.length?'无可读字段':direct.length?'日志直接记录':community&&rows.some(x=>x.candidate)?'代码对照 · 未验证':'原始部件参数','confidence'));d.append(summary);const content=node('div','','evidence-wrap');
   if(!rows.length)content.append(node('p','没有从该文件提取到受支持的厂商或型号字段。Analytics 日志通常不包含完整配置；可补充 sysdiagnose 或 IORegistry 文本。'));
   for(const row of rows){const n=evidence(row);if(community&&row.candidate){n.append(node('p',`${row.candidate.code} → ${row.candidate.vendor}；${row.candidate.confidence}；规则 ${row.candidate.rule}。这是事前整理的对照，不判断质量或真伪。`));const a=node('a','查看映射资料 ↗');a.href=row.candidate.reference;a.target='_blank';a.rel='noopener noreferrer';n.append(a);}content.append(n);}d.append(content);$('hardware').append(d);
  }
 }
-function renderBattery(){const r=reports[current];if(!r)return;const g=r.batteryGroups[Number($('group').value)||0];$('metrics').replaceChildren();$('battery-evidence').replaceChildren();$('battery-notes').replaceChildren();$('battery-empty').hidden=!!g;$('group').hidden=!g;$('group-label').hidden=!g;
- if(!g)return;
- const featured=['cycles','health','design','maximum'];
- const sheet=node('div','','metric-sheet'),extra=node('div','','metric-extra');
- for(const id of featured){const m=g.metrics.find(x=>x.id===id);if(!m)continue;const card=node('article','','metric'+(!m.values.length?' missing':''));card.append(node('h3',m.label));const reading=node('div','','reading');reading.append(node('span',m.values.length?m.values.join(' / '):'未找到','value'),node('span',m.values.length?m.unit:'','unit'));card.append(reading,node('p',m.conflict?'有多个值，未选取最新值':m.matches.length&&!m.values.length?'字段存在，数值无法解读':'日志中的记录'));sheet.append(card);}
- for(const m of g.metrics){for(const o of m.matches)$('battery-evidence').append(evidence(o));if(featured.includes(m.id)||!m.values.length)continue;const row=node('div','','metric-row');row.append(node('span',m.label),node('span',`${m.values.join(' / ')}${m.unit?' '+m.unit:''}`));extra.append(row);}
- $('metrics').append(sheet);if(extra.childElementCount)$('metrics').append(extra);
- $('battery-notes').append(node('p','容量保留日志原始单位。不同来源分别展示；缺失值不等于 0，记录不代表当前电池状态。'));
- for(const e of g.estimates)$('battery-notes').append(node('p',`同一对象的标称容量 ÷ 设计容量：${e.percent}%（仅算术比值，单位一致性未验证；不等于官方电池健康）。来源：${e.source.join(' / ')}`));
+function renderBattery(){const r=reports[current];if(!r)return;const g=r.batteryGroups[Number($('group').value)||0];for(const id of ['metrics','battery-evidence','battery-notes'])$(id).replaceChildren();$('battery-empty').hidden=!!g;$('group').hidden=r.batteryGroups.length<2;$('group-label').hidden=r.batteryGroups.length<2;if(!g)return;
+ const info=groupInfo(g);$('battery-notes').append(node('p','来源：'+info.label+(info.time?' · '+info.time.raw+(info.time.zone==='未标注'?'（日志未标注时区）':''):' · 此来源没有可用记录时间')));
+ const sheet=node('div','','metric-sheet');for(const m of g.metrics.filter(m=>m.values.length)){const card=node('article','','metric');card.append(node('h3',m.id==='health'?'日志容量比例':m.label));const read=node('div','','reading');read.append(node('span',m.values.join(' / '),'value'),node('span',m.unit==='原始单位'?'（日志单位）':m.unit,'unit'));card.append(read);if(m.conflict)card.append(node('p','此来源有多个值，未替你选择'));if(m.id==='health')card.append(node('p','可超过 100%，不等同设置中的电池健康'));if(m.id==='cycles'&&m.values.includes(0))card.append(node('p','日志记录为 0，不据此判断是否使用过'));sheet.append(card);}$('metrics').append(sheet);
+ $('battery-notes').append(node('p','只展示这份来源实际提供的值，其他来源可切换查看；不把不同时间的容量拼成健康度。'));
+ const provenance=node('p','文件：'+g.source+(g.line?' · 第 '+g.line+' 行':''));$('battery-evidence').append(provenance);for(const m of g.metrics)for(const o of m.matches)$('battery-evidence').append(evidence(o));
 }
 function render(){renderFiles();const r=reports[current];$('report').hidden=!r;if(!r)return;
- $('overview').replaceChildren();const top=node('div','','device-top');top.append(node('div','▯','device-symbol'));const info=node('div');info.append(node('h3',reportTitle(r)));const chips=node('div','','chips');for(const f of r.fields.filter(f=>['地区代码','内存容量','存储容量','内存容量（日志原值）','存储容量（日志原值）','系统版本'].includes(f.label)).slice(0,6))chips.append(node('span',`${f.label} · ${f.value}`,'chip'));if(!chips.children.length)chips.append(node('span',r.type,'chip'));info.append(chips);top.append(info);const bottom=node('div','','device-bottom');bottom.append(node('span',`${r.records} 条 JSON 记录 · ${(r.bytes/1024**2).toFixed(1)} MiB`),node('span','序列号默认遮盖'));$('overview').append(top,bottom);
- $('report-notes').replaceChildren();for(const w of r.warnings)$('report-notes').append(node('p',w));if(r.archive)$('report-notes').append(node('p',`包内 ${r.archive.entries} 个条目，读取 ${r.archive.selected} 个相关文件，跳过 ${r.archive.skipped} 个。未提取完整包。`));if(r.dates.length)$('report-notes').append(node('p','记录时间（不推定当前状态）：'+r.dates.slice(0,3).join(' / ')));
+ $('overview').replaceChildren();$('overview').hidden=true;
+ $('report-notes').replaceChildren();if(r.warnings.length){$('report-notes').append(node('p','部分诊断记录未能完整读取，已找到的字段仍可查看。'));}const debug=node('details'),summary=node('summary','读取详情与限制');debug.append(summary);for(const w of r.warnings)debug.append(node('p',w));if(r.archive)debug.append(node('p','包内 '+r.archive.entries+' 个条目，读取 '+r.archive.selected+' 个相关文件；跳过辅助文件、配对设备与无关记录。'));debug.append(node('p','整机代码：'+reportTitle(r)));$('report-notes').append(debug);
  $('device-evidence').replaceChildren();for(const f of r.fields)$('device-evidence').append(evidence(f));if(!r.fields.length)$('device-evidence').append(node('p','未找到受支持的设备字段。'));
- renderHardware(r);$('group').replaceChildren();r.batteryGroups.forEach((g,i)=>{const o=node('option',`${g.subject} · ${g.source}`);o.value=i;$('group').append(o);});renderBattery();setTab(activeTab);
+ renderHardware(r);$('group').replaceChildren();r.batteryGroups.forEach((g,i)=>{const info=groupInfo(g);const o=node('option',`${info.label}${info.time?' · '+info.time.raw:''}${g.subject?.startsWith('日志设备 ')?' · '+g.subject:''}`);o.value=i;$('group').append(o);});$('group').value=preferredGroup(r.batteryGroups);renderBattery();setTab(activeTab);
 }
 function stop(){run++;worker?.terminate();worker=null;$('cancel').hidden=true;$('progress').hidden=true;}
 function clear(){stop();reports=[];errors=[];current=0;selectedByUser=false;renderFiles();$('report').hidden=true;for(const id of ['overview','hardware','device-evidence','metrics','battery-notes','battery-evidence','report-notes'])$(id).replaceChildren();$('file').value='';$('status').textContent='已清除本次文件与内存结果。';}
@@ -53,12 +51,14 @@ async function history(){try{const rows=await operation('readonly',s=>s.getAll()
  }catch{$('history-list').replaceChildren(node('p','此浏览器无法使用本机报告存储；仍可读取或导出。'));}}
 $('save').onclick=async()=>{if(!reports[current])return;try{const existing=await operation('readonly',s=>s.getAll());if(existing.length>=20){$('status').textContent='本机最多保存 20 个报告，请先删除不需要的记录。';return;}const r=sanitized(reports[current]);r.id=crypto.randomUUID();await operation('readwrite',s=>s.put(r));await history();$('status').textContent='已保存脱敏报告到此浏览器；原始文件没有保存。';}catch{$('status').textContent='保存失败；可使用导出脱敏报告。';}};
 history();
-if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(async reg=>{await navigator.serviceWorker.ready;$('offline').textContent='离线资源已就绪 · v2.0.6';}).catch(()=>{$('offline').textContent='离线资源未就绪；本地读取仍可尝试。';});}else $('offline').textContent='当前浏览器不支持离线缓存。';
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(async reg=>{await navigator.serviceWorker.ready;$('offline').textContent='离线资源已就绪 · v2.1.0';}).catch(()=>{$('offline').textContent='离线资源未就绪；本地读取仍可尝试。';});}else $('offline').textContent='当前浏览器不支持离线缓存。';
 let colorIndex=0;const colors=['#fff','#000','#f00','#0f0','#00f','#808080'];$('screen-test').onclick=()=>{colorIndex=0;$('screen-overlay').style.background=colors[0];$('screen-overlay').hidden=false;};$('screen-next').onclick=()=>{$('screen-overlay').style.background=colors[++colorIndex%colors.length];};$('screen-close').onclick=()=>{$('screen-overlay').hidden=true;};document.addEventListener('keydown',e=>{if(e.key==='Escape')$('screen-overlay').hidden=true;});
 const canvas=$('touch'),ctx=canvas.getContext('2d'),points=new Map();function position(e){const b=canvas.getBoundingClientRect();return {x:(e.clientX-b.left)*canvas.width/b.width,y:(e.clientY-b.top)*canvas.height/b.height};}canvas.onpointerdown=e=>{points.set(e.pointerId,position(e));canvas.setPointerCapture(e.pointerId);};canvas.onpointermove=e=>{if(!points.has(e.pointerId))return;const p=position(e),old=points.get(e.pointerId);ctx.beginPath();ctx.moveTo(old.x,old.y);ctx.lineTo(p.x,p.y);ctx.strokeStyle='#1d1d1f';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke();points.set(e.pointerId,p);};for(const type of ['pointerup','pointercancel'])canvas.addEventListener(type,e=>points.delete(e.pointerId));$('touch-clear').onclick=()=>{ctx.clearRect(0,0,canvas.width,canvas.height);points.clear();};
 function stopCamera(){cameraStream?.getTracks().forEach(t=>t.stop());cameraStream=null;$('camera').srcObject=null;$('camera').hidden=true;}
 let cameraRequest=0;async function startCamera(facing){const request=++cameraRequest;stopCamera();if(!navigator.mediaDevices?.getUserMedia){$('camera-status').textContent='当前浏览器无法提供摄像头预览。';return;}$('camera-status').textContent='等待摄像头授权…';try{const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}},audio:false});if(request!==cameraRequest||document.hidden||!$('manual').open){stream.getTracks().forEach(t=>t.stop());return;}cameraStream=stream;$('camera').srcObject=stream;$('camera').hidden=false;await $('camera').play();$('camera-status').textContent='本机实时预览，不拍照、不保存、不上传。';}catch{$('camera-status').textContent='未能打开摄像头；请检查权限或是否被其他应用占用。';stopCamera();}}
 $('camera-front').onclick=()=>startCamera('user');$('camera-rear').onclick=()=>startCamera('environment');$('camera-stop').onclick=()=>{cameraRequest++;stopCamera();$('camera-status').textContent='预览已关闭。';};$('manual').addEventListener('toggle',()=>{if(!$('manual').open){cameraRequest++;stopCamera();}});document.addEventListener('visibilitychange',()=>{if(document.hidden){cameraRequest++;stopCamera();}});window.addEventListener('pagehide',()=>{cameraRequest++;stopCamera();stop();});
+
+
 
 
 
