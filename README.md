@@ -233,5 +233,6 @@ Service Worker 需要 HTTPS 或 localhost。资源使用相对路径，适配 Gi
 
 <div align="center">
   <p><strong>读得到的，给出依据；读不到的，保留未知。</strong></p>
+  <p>由兰野实验室 · Lanye Lab 维护。在未知中探索，让想法生长。</p>
   <p>独立项目，与 Apple 或其他诊断 App 无关联。</p>
 </div>
